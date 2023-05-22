@@ -64,6 +64,22 @@ public class ThrottleQueueTaskDispatcher extends QueueTaskDispatcher {
         }
     }
 
+    /**
+     * Author: Kenny
+     * Let stop using Queue isPending function.
+     */
+    private int getPendingCount(Task task) {
+        int pendingCount = 0;
+        List<Queue.BuildableItem> pendings = Jenkins.get().getQueue().getPendingItems();
+        for(Queue.BuildableItem item: pendings) {
+            if(item.task.equals(task)) {
+                pendingCount++;
+            }
+        }
+        return pendingCount;
+    }
+
+
     private CauseOfBlockage canTakeImpl(Node node, Task task) {
         final Jenkins jenkins = Jenkins.get();
         ThrottleJobProperty tjp = getThrottleJobProperty(task);
@@ -84,6 +100,7 @@ public class ThrottleQueueTaskDispatcher extends QueueTaskDispatcher {
                     if (tjp.getMaxConcurrentPerNode() > 0) {
                         int maxConcurrentPerNode = tjp.getMaxConcurrentPerNode();
                         int runCount = buildsOfProjectOnNode(node, task);
+                        runCount += getPendingCount(task);
 
                         // This would mean that there are as many or more builds currently running than are allowed.
                         if (runCount >= maxConcurrentPerNode) {
@@ -121,11 +138,14 @@ public class ThrottleQueueTaskDispatcher extends QueueTaskDispatcher {
                                 node, category, category.getMaxConcurrentPerNode());
                         if (maxConcurrentPerNode > 0) {
                             for (Task catTask : categoryTasks) {
+                                /* Kenny
                                 if (jenkins.getQueue().isPending(catTask)) {
                                     return CauseOfBlockage.fromMessage(
                                             Messages._ThrottleQueueTaskDispatcher_BuildPending());
                                 }
+                                */
                                 runCount += buildsOfProjectOnNode(node, catTask);
+                                runCount += getPendingCount(catTask);
                             }
                             Map<String, List<FlowNode>> throttledPipelines =
                                     ThrottleJobProperty.getThrottledPipelineRunsForCategory(catNm);
@@ -233,15 +253,18 @@ public class ThrottleQueueTaskDispatcher extends QueueTaskDispatcher {
         if (!shouldBeThrottled(task, tjp) && pipelineCategories.isEmpty()) {
             return null;
         }
+        /* Kenny
         if (jenkins.getQueue().isPending(task)) {
             return CauseOfBlockage.fromMessage(Messages._ThrottleQueueTaskDispatcher_BuildPending());
         }
+        */
         if (tjp != null) {
             if (tjp.getThrottleOption().equals("project")) {
                 if (tjp.getMaxConcurrentTotal() > 0) {
                     int maxConcurrentTotal = tjp.getMaxConcurrentTotal();
                     int totalRunCount = buildsOfProjectOnAllNodes(task);
-
+                    // Kenny
+                    totalRunCount += getPendingCount(task);
                     if (totalRunCount >= maxConcurrentTotal) {
                         return CauseOfBlockage.fromMessage(
                                 Messages._ThrottleQueueTaskDispatcher_MaxCapacityTotal(totalRunCount));
@@ -273,11 +296,16 @@ public class ThrottleQueueTaskDispatcher extends QueueTaskDispatcher {
                         int totalRunCount = 0;
 
                         for (Task catTask : categoryTasks) {
+                            /* Kenny
                             if (jenkins.getQueue().isPending(catTask)) {
                                 return CauseOfBlockage.fromMessage(
                                         Messages._ThrottleQueueTaskDispatcher_BuildPending());
                             }
+                            */
                             totalRunCount += buildsOfProjectOnAllNodes(catTask);
+
+                            // Kenny
+                            totalRunCount += getPendingCount(catTask);
                         }
                         Map<String, List<FlowNode>> throttledPipelines =
                                 ThrottleJobProperty.getThrottledPipelineRunsForCategory(catNm);
