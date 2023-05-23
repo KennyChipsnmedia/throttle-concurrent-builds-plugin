@@ -72,6 +72,7 @@ public class ThrottleQueueTaskDispatcher extends QueueTaskDispatcher {
         int pendingCount = 0;
         List<Queue.BuildableItem> pendings = Jenkins.get().getQueue().getPendingItems();
         for(Queue.BuildableItem item: pendings) {
+
             if(item.task.equals(task)) {
                 pendingCount++;
             }
@@ -100,7 +101,7 @@ public class ThrottleQueueTaskDispatcher extends QueueTaskDispatcher {
                     if (tjp.getMaxConcurrentPerNode() > 0) {
                         int maxConcurrentPerNode = tjp.getMaxConcurrentPerNode();
                         int runCount = buildsOfProjectOnNode(node, task);
-                        runCount += getPendingCount(task);
+//                        runCount += getPendingCount(task);
 
                         // This would mean that there are as many or more builds currently running than are allowed.
                         if (runCount >= maxConcurrentPerNode) {
@@ -144,8 +145,9 @@ public class ThrottleQueueTaskDispatcher extends QueueTaskDispatcher {
                                             Messages._ThrottleQueueTaskDispatcher_BuildPending());
                                 }
                                 */
+
                                 runCount += buildsOfProjectOnNode(node, catTask);
-                                runCount += getPendingCount(catTask);
+//                                runCount += getPendingCount(catTask);
                             }
                             Map<String, List<FlowNode>> throttledPipelines =
                                     ThrottleJobProperty.getThrottledPipelineRunsForCategory(catNm);
@@ -302,6 +304,7 @@ public class ThrottleQueueTaskDispatcher extends QueueTaskDispatcher {
                                         Messages._ThrottleQueueTaskDispatcher_BuildPending());
                             }
                             */
+
                             totalRunCount += buildsOfProjectOnAllNodes(catTask);
 
                             // Kenny
@@ -591,6 +594,10 @@ public class ThrottleQueueTaskDispatcher extends QueueTaskDispatcher {
             }
         }
 
+        LOGGER.log(Level.FINE, "Checked for builds of {0} on node {1} runCount {2}", new Object[] {
+            task.getName(), node.getDisplayName(), runCount
+        });
+
         return runCount;
     }
 
@@ -605,10 +612,32 @@ public class ThrottleQueueTaskDispatcher extends QueueTaskDispatcher {
     }
 
     private int buildsOnExecutor(Task task, Executor exec) {
+
+        /* original
         int runCount = 0;
         final Queue.Executable currentExecutable = exec.getCurrentExecutable();
         if (currentExecutable != null && task.equals(currentExecutable.getParent())) {
             runCount++;
+        }
+        return runCount;
+        */
+
+        // Kenny
+        int runCount = 0;
+        final Queue.Executable currentExecutable = exec.getCurrentExecutable();
+
+        if(currentExecutable == null) { // before Queue#onStartExecuting
+            WorkUnit workUnit = exec.getCurrentWorkUnit();
+            if(workUnit != null) {
+                if(task.equals(workUnit.context.item.task)) {
+                    runCount++;
+                }
+            }
+        }
+        else {
+            if(task.equals(currentExecutable.getParent())) {
+                runCount++;
+            }
         }
 
         return runCount;
